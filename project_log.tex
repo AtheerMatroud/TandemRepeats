@@ -1,0 +1,88 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8}
+}
+
+\title{Tandem Repeats Project --- Work Log}
+\author{Atheer A. Matroud\\ \small (documented with Claude)}
+\date{24 August 2026}
+
+\begin{document}
+\maketitle
+
+\section{Session: Y-chromosome data acquisition (24 Aug 2026)}
+
+\subsection{Objective}
+Identify and obtain long-read, fully assembled human Y-chromosome sequences
+suitable for tandem-repeat analysis (e.g.\ DYZ1/DYZ2 heterochromatin blocks,
+the DYZ3 centromeric $\alpha$-satellite array, and the TSPY repeat array),
+which short-read datasets such as the original 1000~Genomes releases cannot
+resolve.
+
+\subsection{Dataset selected}
+\textbf{Hallast, Ebert, Loftus et al.\ (2023)}, ``Assembly of 43 human
+Y~chromosomes reveals extensive complexity and variation'',
+\emph{Nature} \textbf{621}, 344--354.
+\href{https://doi.org/10.1038/s41586-023-06425-6}{doi:10.1038/s41586-023-06425-6}.
+
+The dataset comprises 43 male samples spanning approximately 183{,}000 years
+of Y-chromosome divergence, assembled by the Human Genome Structural
+Variation Consortium (HGSVC) from PacBio HiFi and Oxford Nanopore ultralong
+reads. Most samples have contiguous assemblies of the repeat regions of
+interest.
+
+\subsection{Download locations}
+\begin{enumerate}
+  \item Primary FTP mirror (assembled genomes and related files):
+  \begin{lstlisting}
+https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/working/20230412_sigY_assembly_data/
+  \end{lstlisting}
+  \item Archived INSDC records: BioProjects \texttt{PRJEB58376} and
+  \texttt{PRJNA988114} (assemblies); underlying sequencing reads under
+  \texttt{PRJEB41077}, \texttt{PRJEB39684}, \texttt{PRJEB39750}.
+  \item Reference-grade complete Y for comparison: T2T-CHM13v2.0
+  (includes the HG002 T2T-Y), NCBI assembly \texttt{GCA\_009914755.4}.
+\end{enumerate}
+
+\subsection{Scripts produced}
+Two equivalent download scripts were written and placed in the project
+folder (both mirror the FTP directory and are safe to re-run; complete
+files are skipped):
+\begin{itemize}
+  \item \texttt{download\_hallast\_y43.sh} --- Bash/wget version, for
+  WSL, Git~Bash, Linux or macOS:
+  \begin{lstlisting}
+bash download_hallast_y43.sh [output_dir]
+  \end{lstlisting}
+  \item \texttt{download\_hallast\_y43.py} --- pure-Python (standard
+  library only) version that runs natively on Windows:
+  \begin{lstlisting}
+python download_hallast_y43.py [output_dir]
+  \end{lstlisting}
+\end{itemize}
+Default output directory: \texttt{hallast\_y43\_assemblies/}.
+
+\subsection{Notes and next steps}
+\begin{itemize}
+  \item Verify downloads against the MD5/manifest files shipped in the
+  FTP directory.
+  \item Earlier in this session, 1000~Genomes short-read chrY resources
+  were also identified (Phase~3 GRCh37 chrY genotypes VCF; NYGC 30$\times$
+  GRCh38 raw calls) should variant-level data be needed later.
+  \item Pending: recovery or reconstruction of the DHT (duplication
+  history tree) simulation code from a previous chat session.
+  \item Pending: upload of project code to GitHub (repository to be
+  confirmed).
+\end{itemize}
+
+\end{document}
