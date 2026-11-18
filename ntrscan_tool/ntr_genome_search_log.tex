@@ -1,0 +1,377 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage[hidelinks]{hyperref}
+\title{Whole genome search for nested tandem repeats: work log}
+\author{Atheer Matroud}
+\date{Sessions of 11 November 2026}
+\begin{document}
+\maketitle
+
+\section{Aim}
+The aim is a new software tool that searches a whole genome for nested tandem
+repeats (NTRs) efficiently. NTRFinder (Chapter 4 of the thesis) first finds a
+tandem repeat with two scanning windows and then looks for displaced copies of
+the tandem motif. The new tool replaces that search phase by statistics on the
+distances between occurrences of $k$-tuples, collected in one pass over the
+sequence. Verification remains the nested wrap-around dynamic programming of
+Chapter 5.
+
+\section{Decisions taken in this session}
+\begin{enumerate}
+\item The input is a FASTA file that may hold a whole genome.
+\item The user chooses a motif length interval. Three intervals are provided,
+      each with its own parameters: 7 to 100 bp, 101 to 500 bp, and 501 bp and
+      above.
+\item The tuple length grows with the interval: $k=4$, $k=6$, $k=8$.
+\item A locus may contain more than two motifs. Verification will use the
+      $r$-motif alignment of Section 5.4.4 of the thesis.
+\item The implementation is in Python with NumPy and Numba.
+\item The sequence is scanned from left to right and every overlapping
+      $k$-tuple is visited.
+\item The work proceeds step by step, with tests on simulated and real data at
+      each step.
+\end{enumerate}
+
+\section{Planned steps}
+\begin{enumerate}
+\item Read the FASTA file record by record and encode it.
+\item Compute, for every site, the distance to the previous occurrence of the
+      $k$-tuple that starts there.
+\item Compress the distances into runs of constant value and discard short runs.
+\item Chain neighbouring runs into loci and classify each locus as a tandem
+      repeat or a candidate NTR.
+\item Predict the motifs: the tandem motif $\mathbf{x}$ from the dominant
+      distance, the interspersed motifs by clustering the segments between runs
+      of $\mathbf{x}$.
+\item Verify by $r$-motif nested wrap-around dynamic programming.
+\item Report the loci.
+\item Test on simulated data (Section 4.4.1 of the thesis) and on real data.
+\end{enumerate}
+Steps 1 and 2 were completed in this session.
+
+\section{The distances in a nested tandem repeat}
+Let $\mathbf{x}$ be the tandem motif with $|\mathbf{x}|=m$ and $\mathbf{X}$ the
+interspersed motif with $|\mathbf{X}|=l$, and let the NTR be
+$\mathbf{x}^{s_0}\mathbf{X}\mathbf{x}^{s_1}\mathbf{X}\cdots\mathbf{X}\mathbf{x}^{s_n}$.
+For a $k$-tuple that starts at site $i$, let $d(i)$ be the distance from $i$ back
+to the start of the previous occurrence of the same $k$-tuple. Then
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+The $k$-tuple lies in & $d(i)$ \\
+\midrule
+$\mathbf{x}$, inside a run $\mathbf{x}^{s_i}$ & $m$ \\
+the first $\mathbf{x}$ after an $\mathbf{X}$ & $m+l$ \\
+$\mathbf{X}$ & $l+s_i m$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Every distance other than $m$ is congruent to $l$ modulo $m$. The dominant
+distance gives $m$, the smallest other distance gives $m+l$, and the
+congruence is a test that costs no alignment. With $r$ motifs of lengths
+$l_1,\ldots,l_r$ every distance has the form $\sum_j a_j l_j$ with non-negative
+integers $a_j$.
+
+\section{Step 1: reading the FASTA file}
+The file is read one record at a time, so only one sequence is held in memory.
+The nucleotides are encoded as $A=0$, $C=1$, $G=2$, $T=3$. Every other symbol is
+marked invalid. Lower case letters are treated as upper case. Compressed
+(\texttt{.gz}) files are accepted. Code: \texttt{ntrscan/fasta.py}.
+
+\section{Step 2: the distances $d(i)$}
+The sequence is scanned once from left to right. The $k$-tuple that starts at
+site $i$ covers sites $i,\ldots,i+k-1$, and the next $k$-tuple starts at site
+$i+1$, so consecutive tuples overlap in $k-1$ sites and none is skipped. A table
+with $4^k$ entries holds the start of the last occurrence of every $k$-tuple.
+For each $i$ the table gives $d(i)$, and the entry is then replaced by $i$.
+$d(i)=0$ is recorded when there is no previous occurrence within the largest
+distance allowed for the interval, or when the $k$-tuple contains an invalid
+symbol. The scan takes $O(n)$ time and $O(4^k)$ additional space. Code:
+\texttt{ntrscan/track.py}.
+
+The provisional parameters are given in Table~\ref{tab:tiers}.
+\begin{table}[h]\centering
+\caption{Provisional parameters of the three intervals.}\label{tab:tiers}
+\begin{tabular}{lrrr}
+\toprule
+Motif length (bp) & $k$ & Largest distance recorded \\
+\midrule
+7 to 100 & 4 & 2000 \\
+101 to 500 & 6 & 10000 \\
+501 and above & 8 & 65535 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Worked example}
+With $k=4$, $\mathbf{x}=\texttt{ACGGTCA}$ ($m=7$),
+$\mathbf{X}=\texttt{GACCTTTGGC}$ ($l=10$), the NTR
+$\mathbf{x}^3\mathbf{X}\mathbf{x}^2\mathbf{X}\mathbf{x}^4\mathbf{X}\mathbf{x}^2$
+and 12 random nucleotides on each side, the runs of constant $d$ are given in
+Table~\ref{tab:example}. Sites are numbered from 0 and the NTR starts at site 12.
+\begin{table}[h]\centering
+\caption{Runs of constant $d$ in the worked example (short runs omitted).}\label{tab:example}
+\begin{tabular}{rrrl}
+\toprule
+Sites & Run length & $d$ & Meaning \\
+\midrule
+18 to 29 & 12 & 7 & inside $\mathbf{x}^3$ \\
+43 to 46 & 4 & 17 & first $\mathbf{x}$ after $\mathbf{X}$: $m+l$ \\
+47 to 49 & 3 & 24 & tuples that span two copies of $\mathbf{x}$ \\
+50 to 53 & 4 & 7 & inside $\mathbf{x}^2$ \\
+54 to 66 & 13 & 24 & second $\mathbf{X}$: $l+2m$ \\
+67 to 70 & 4 & 17 & $m+l$ \\
+74 to 91 & 18 & 7 & inside $\mathbf{x}^4$ \\
+92 to 104 & 13 & 38 & third $\mathbf{X}$: $l+4m$ \\
+105 to 108 & 4 & 17 & $m+l$ \\
+112 to 116 & 5 & 7 & inside $\mathbf{x}^2$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+The dominant distance is 7, so $m=7$. The smallest other distance is 17, so
+$l=10$. The distances 24 and 38 leave remainder 3 on division by 7, as $l$
+does. The runs of length $13=l+k-1$ mark the copies of $\mathbf{X}$: the run at
+sites 54 to 66 places $\mathbf{X}$ at sites 57 to 66, where it was embedded.
+The multipliers 2 and 4 in $l+2m$ and $l+4m$ are the values $s_i$.
+
+With a third motif $\mathbf{Y}=\texttt{TTAGCATCGAAC}$ (12 bp) and the order
+$\mathbf{x}^3\mathbf{X}\mathbf{Y}\mathbf{x}^2\mathbf{X}\mathbf{x}^3\mathbf{Y}^2\mathbf{x}^2\mathbf{X}\mathbf{x}^2$
+the distances observed are 7, 12, 17, 24, 29, 31, 36, 38, 57 and 69, each of the
+form $7a+10b+12c$.
+
+\section{Tests of Steps 1 and 2}
+\subsection{Correctness}
+Seven tests are in \texttt{tests/test\_step1\_step2.py} and all pass:
+encoding; reading plain and compressed FASTA files with several records;
+overlapping tuples on hand-checked strings; invalid symbols, lower case and the
+largest distance; agreement with a slow dictionary implementation on 200 random
+sequences for $k\in\{1,2,3,4,6,8\}$; the worked example of
+Table~\ref{tab:example}; and 100 exact NTRs embedded in 100\,000 random
+nucleotides.
+
+\subsection{Simulated data}
+The design of Section 4.4.1 of the thesis was followed: random sequence with
+each nucleotide at probability 0.25, 100 embedded NTRs with random motifs of 7
+to 100 bp, indels at 1\% per site and substitutions at 1\% to 4\% per site.
+Table~\ref{tab:signal} gives the fraction of the tandem sites of $\mathbf{x}$
+at which $d(i)=m$ (exact data) or $|d(i)-m|\le 1$ (mutated data).
+\begin{table}[h]\centering
+\caption{Fraction of tandem sites of $\mathbf{x}$ with $d(i)=m$, by motif length.}\label{tab:signal}
+\begin{tabular}{rrrrrrr}
+\toprule
+$k$ & Substitutions & 7 to 20 & 21 to 40 & 41 to 60 & 61 to 80 & 81 to 100 \\
+\midrule
+4 & 0\% & 0.85 & 0.87 & 0.85 & 0.73 & 0.68 \\
+4 & 1\% & 0.75 & 0.78 & 0.73 & 0.58 & 0.55 \\
+4 & 2\% & 0.69 & 0.72 & 0.67 & 0.55 & 0.50 \\
+4 & 3\% & 0.63 & 0.66 & 0.60 & 0.51 & 0.47 \\
+4 & 4\% & 0.65 & 0.60 & 0.58 & 0.47 & 0.45 \\
+\midrule
+6 & 0\% & 0.87 & 0.94 & 0.97 & 0.95 & 0.96 \\
+6 & 1\% & 0.70 & 0.77 & 0.76 & 0.71 & 0.71 \\
+6 & 2\% & 0.61 & 0.68 & 0.67 & 0.64 & 0.62 \\
+6 & 3\% & 0.52 & 0.61 & 0.58 & 0.58 & 0.56 \\
+6 & 4\% & 0.54 & 0.52 & 0.53 & 0.50 & 0.50 \\
+\midrule
+8 & 0\% & 0.83 & 0.92 & 0.95 & 0.96 & 0.97 \\
+8 & 1\% & 0.61 & 0.69 & 0.69 & 0.66 & 0.67 \\
+8 & 2\% & 0.51 & 0.60 & 0.58 & 0.57 & 0.56 \\
+8 & 3\% & 0.41 & 0.51 & 0.49 & 0.50 & 0.48 \\
+8 & 4\% & 0.43 & 0.41 & 0.43 & 0.41 & 0.42 \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize The rows with substitutions also carry indels at 1\% per site.}
+\end{table}
+
+Two observations follow.
+\begin{enumerate}
+\item In exact repeats the fraction is below 1 for two reasons. Tuples that
+      span the end of the last $\mathbf{x}$ of a run have a different distance.
+      A $k$-tuple that occurs twice inside $\mathbf{x}$ gives a distance
+      shorter than $m$. The second effect grows with $m$: with $k=4$ the
+      fraction falls to 0.68 for motifs of 81 to 100 bp, while $k=6$ stays at
+      0.96.
+\item A larger $k$ loses more sites to mutation, because one substitution
+      destroys $k$ tuples. At 4\% substitutions about half of the sites keep
+      the signal for $k=4$ and $k=6$.
+\end{enumerate}
+
+In 20 Mb of random sequence, runs of constant non-zero $d$ of length 10 or more
+occurred 10, 7 and 12 times for $k=4,6,8$, and the longest run was 10, 11 and 12
+sites. A minimum run length near 12 is therefore a candidate threshold for Step
+3, to be confirmed on real genomes.
+
+\subsection{Speed}
+On 50 Mb the scan alone took 0.07 s, 0.11 s and 0.26 s for $k=4,6,8$. Reading a
+50 Mb FASTA file and scanning it with $k=4$ took 0.3 s in total, which
+corresponds to about 21 s for a genome of 3.1 Gb on two cores of a cloud
+machine.
+
+\subsection{Real data}
+Real data were tested after the simulated data, in the manual investigation of
+Section~\ref{sec:manual}.
+
+\section{Further rulings}
+\begin{enumerate}
+\item The interval 7 to 100 bp is split: 7 to 60 bp with $k=4$ and 61 to 100 bp
+      with $k=6$. Section~\ref{sec:taro} shows that this ruling needs to be
+      revisited.
+\item A locus in which two different halves alternate strictly, so that every
+      $s_i=1$, is reported as a tandem repeat with motif $\mathbf{xX}$.
+\item A locus is an NTR only if $d(\mathbf{x},\mathbf{X})$ exceeds a threshold
+      $h$. The threshold is a user parameter; the default is equation (4.1) of
+      the thesis with $p_m=0.8$.
+\item An NTR with a short tandem motif inside a long interspersed motif is
+      reported only if $|\mathbf{x}|>1$ and the $s_i$ are not all equal.
+\item The results are examined by hand first. The pipeline is built once the
+      observations are correct.
+\end{enumerate}
+
+\section{Manual investigation on real data}\label{sec:manual}
+\subsection{Human Y chromosome}
+The file \texttt{HC18989.HIFIRW.ONTUL.na.chrY.fasta} holds 44 records and about
+71 Mb, with no \texttt{N}. The scan takes about one second per 10 Mb. For the
+largest record (PAR1 to centromere, 10.6 Mb) and $k=4$, runs of constant
+non-zero $d(i)$ of length 12 or more cover 0.88\% of the record (4\,538 runs);
+runs of 100 or more number 16. The distances that cover most sites are 4, 1, 2,
+6, 5 and 3; above 7 bp they are 26, 27, 61, 45, 55, 49 and 41. The 23
+centromeric records give no run of 10 or more with $k=4$.
+
+Runs of 12 or more sites with $d\ge 7$ were grouped into loci when they lay
+within 200 bp. Of 1\,464 loci, 1\,371 show one distance, 37 show distances that
+differ by 1 or 2, 3 show a distance and its multiple, and 53 show mixed
+distances. The 53 were read by hand and fall into four groups
+(Table~\ref{tab:ygroups}). About 30 of them are shorter than 200 bp and cannot
+be judged.
+
+\begin{table}[h]\centering
+\caption{Mixed loci on the Y chromosome ($k=4$), record 0.}\label{tab:ygroups}
+\begin{tabular}{p{4.2cm}p{5.6cm}p{4.2cm}}
+\toprule
+Group & Example & Reading \\
+\midrule
+One motif, copies of different length & site 1\,755\,586: 33 and 28; the short copy lacks \texttt{TAGCC} & tandem repeat \\
+Two halves in strict alternation & site 2\,020\,824: 32, and 29 where \texttt{GCC} is deleted & tandem repeat, motif $\mathbf{xX}$ \\
+Diverged copies & site 314\,131: 40, and 120 = 3 $\times$ 40 & tandem repeat \\
+Short repeat inside a long unit & site 147\,490: 113, 131, 121, each followed by a run with $d=2$ & NTR with $\mathbf{x}=\texttt{TG}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The locus at sites 1\,949\,408 to 1\,949\,946 shows the distances 21 and 15 and
+matches the last row of Table 4.2 of the thesis ($|\mathbf{x}|=21$,
+$|\mathbf{X}|=15$). Its copies are
+$\mathbf{x}=\texttt{GGACCCAGGCAGATAGGAATA}$ and a 15 bp copy that is
+$\mathbf{x}$ without \texttt{GGAATA}. Whether this is an NTR under the
+threshold ruling is not yet decided.
+
+With $k=6$ and $d\ge 61$ the centromeric records are dominated by $d=171$
+(142\,085 sites), record 24 holds an array of about 250 kb with $d=125$,
+record 0 holds an array of about 44 kb with $d=61$, and the \texttt{TG} locus
+appears as one locus of 4.2 kb with distances from 110 to 133. Half of the loci
+(1\,637 of 3\,323) show two or more distances, mostly $m$, $m\pm 1$ and
+multiples of $m$. The mixture of distances alone therefore does not identify an
+NTR; the motifs have to be compared.
+
+\subsection{Taro}\label{sec:taro}
+The data are two rDNA regions of cultivar Lipu (CM132705.1, sites 131\,800\,001
+to 131\,825\,000, and CM132707.1, sites 1 to 25\,200) and ten extracted NTR
+alleles from cultivars Longxiangyu, Moi and Lipu. Run tables for $k=4$ and
+$k=6$ were supplied with the regions; the scan reproduces all four tables
+exactly (23, 71, 16 and 60 runs).
+
+The motifs, read from the sequence, are as in the thesis, with $m=11$ and
+$l=48$:
+\begin{align*}
+\mathbf{x}&=\texttt{GTCGCACAGCC},\\
+\mathbf{X}&=\texttt{GTTCTGGGCAAAACGGCTGGGCGACGTGCTGGACTGGCCAGCTGGTTC}.
+\end{align*}
+
+\paragraph{The effect of $k$.} Table~\ref{tab:tarok} gives the distances seen
+on the first region. With $k=4$ only $d=11$ is seen: the tandem motif is found
+and the interspersed motif is not. The distances $l+s_im$ appear from $k=5$ and
+are complete at $k=6$. The interspersed motif has 48 bp, which the current
+ruling assigns to $k=4$. The relevant length for the choice of $k$ is the
+distance $l+s_im$ (59 to 213 here), not $|\mathbf{X}|$.
+
+\begin{table}[h]\centering
+\caption{Distances in runs of 12 or more sites, first taro region ($d\ge 7$).}\label{tab:tarok}
+\begin{tabular}{rp{11cm}}
+\toprule
+$k$ & Distances \\
+\midrule
+4 & 11, 29 \\
+5 & 11, 29, 41, 59, 167, 180, 213 \\
+6 & 11, 22, 29, 59, 81, 110, 114, 125, 147, 158, 167, 180, 194, 213 \\
+8 & 11, 22, 29, 59, 81, 110, 114, 125, 136, 147, 158, 167, 180, 213, 228, 338, 360, 371, 676, 687 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Structure.} The copies of $\mathbf{X}$ were located in each allele
+by approximate matching and the $s_i$ were read from the gaps between them.
+For allele A07 (Lipu) this gives 12 copies of $\mathbf{X}$ and
+\[(s_0,\ldots,s_{12})=(4,3,1,6,7,8,4,10,12,10,15,13,4),\]
+with $\sum s_i=97$, in agreement with the counts in the header of the allele
+($X=12$, $x=97$). The predicted distances are 11, $m+l=59$, and
+$l+s_im\in\{81,92,114,125,136,158,180,191,213\}$. The scan with $k=6$ reports
+11, 59, 81, 114, 125, 158, 180, 194 and 213. The values 92 and 136 are missing
+because the copies of $\mathbf{X}$ concerned carry 3 to 5 differences and their
+runs are shorter than 12; 194 replaces 191 because of an indel. Every distance
+other than 11 leaves remainder 4 on division by 11, as $l=48$ does. The other
+alleles behave in the same way (Table~\ref{tab:taroalleles}). The distance 167
+belongs to a different repeat downstream of the NTR.
+
+\begin{table}[h]\centering
+\caption{Structure of the taro alleles read from the sequence.}\label{tab:taroalleles}
+\begin{tabular}{llrl}
+\toprule
+Allele & Cultivar & Copies of $\mathbf{X}$ & $(s_0,\ldots,s_n)$ \\
+\midrule
+A01, A02, A07, A09 & Longxiangyu, Lipu & 12 & (4,3,1,6,7,8,4,10,12,10,15,13,4) \\
+A03 & Longxiangyu & 12 & (4,3,1,6,7,8,5,9,12,10,15,13,4) \\
+A08 & Lipu & 12 & (4,3,1,6,7,8,4,10,12,9,15,13,4) \\
+A04, A06 & Longxiangyu, Moi & 12 & (8,3,2,8,10,9,4,11,6,10,10,6,5) \\
+A05 & Moi & 11 & (5,3,1,6,10,5,10,8,10,13,12,4) \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize The $s_i$ are gap lengths divided by 11 and rounded; they are a
+reading by hand, not an alignment. Allele A10 is incomplete in the supplied
+file and the file of allele maps is empty.}
+\end{table}
+
+\paragraph{Distance between the motifs.} The edit distance
+$d(\mathbf{x},\mathbf{X})$ is 37, but 37 is also the difference in length, so
+this value says little. The best match of $\mathbf{x}$ against a substring of
+$\mathbf{X}$ has 4 differences, against a bound of 3.5 from equation (4.1) for
+$|\mathbf{x}|=11$. For the Y chromosome locus with lengths 21 and 15 the short
+motif matches a substring of the long one with no difference. A comparison of
+the shorter motif with the best substring of the longer one therefore separates
+the two cases, whereas the plain edit distance does not.
+
+\section{Open points}
+\begin{enumerate}
+\item The choice of $k$ should follow the distances $l+s_im$ and not the motif
+      length; the split of the first interval has to be reconsidered.
+\item The measure used for $d(\mathbf{x},\mathbf{X})$ when the motifs differ in
+      length, and the status of the 21 and 15 locus.
+\item The minimum run length and the minimum size of a locus. On real data only
+      15\% to 40\% of the sites of a locus lie in runs of 12 or more.
+\item The largest distance recorded for each interval is provisional.
+\end{enumerate}
+
+\section{Note on the code (18 November 2026)}
+The package files written on 11 November 2026 (\texttt{ntrscan/fasta.py},
+\texttt{ntrscan/track.py} and \texttt{tests/test\_step1\_step2.py}) were not kept.
+They were rebuilt on 18 November 2026 from this log and from
+\texttt{Taro\_NTR/scan\_taro.py}. The seven tests pass, and the rebuilt scan
+reproduces the four taro run tables exactly (23, 71, 16 and 60 runs, with the
+largest distance 2000 and a minimum run length of 12). The figures of
+Table~\ref{tab:signal} and of the speed test were obtained with the original
+files and were not rerun.
+\end{document}

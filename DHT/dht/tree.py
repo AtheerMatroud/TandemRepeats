@@ -7,7 +7,8 @@ Step 2  the tree, by one of two rules:
           closest pair      : join the pair with the smallest d, replace the pair by its
                               reconstructed ancestor, recompute d from that ancestor, repeat;
           neighbour joining : topology from the leaf distance matrix alone, then the
-                              ancestors are reconstructed from the leaves upwards.
+                              ancestors are reconstructed from the leaves upwards. The tree
+                              is rooted by an outgroup sequence supplied by the user.
         Both stop at the closest common ancestor of all sequences (the root); the root
         is not reduced further.
 Step 3  each ancestor is aligned against each of its children (asymmetric alignment,
@@ -98,16 +99,9 @@ def closest_pair_tree(leaves: Dict[str, Sequence[str]], variants: Dict[str, str]
     return nodes[0]
 
 
-def neighbour_joining_tree(leaves: Dict[str, Sequence[str]], variants: Dict[str, str], distance=hamming,
-                           log: Optional[list] = None) -> Node:
-    """Rule 2: neighbour-joining topology from the leaf distances, rooted on the last
-    edge joined; then ancestors reconstructed from the leaves upwards."""
-    nodes = [Node(n, list(s)) for n, s in leaves.items()]
-    joins = distance_matrix(nodes, variants, distance)
-    D: Dict[FrozenSet[int], float] = {frozenset(ij): v[1] + v[2] for ij, v in joins.items()}
-    if log is not None:
-        log.append({"names": [n.name for n in nodes],
-                    "dist": {(nodes[a].name, nodes[b].name): v[1] + v[2] for (a, b), v in joins.items()}})
+def _nj_join(nodes: List[Node], D: Dict[FrozenSet[int], float], log: Optional[list]) -> Node:
+    """Neighbour joining down to two nodes; returns the tree rooted on the last edge joined.
+    Internal nodes carry no sequence yet."""
     active: Dict[int, Node] = dict(enumerate(nodes))
     nxt, step = len(nodes), 0
     while len(active) > 2:
@@ -128,7 +122,72 @@ def neighbour_joining_tree(leaves: Dict[str, Sequence[str]], variants: Dict[str,
         active[nxt] = new
         nxt += 1
     a, b = sorted(active)
-    root = Node(f"A{step + 1}", [], [active[a], active[b]])
+    return Node(f"A{step + 1}", [], [active[a], active[b]])
+
+
+def _root_by_outgroup(root: Node, outgroup: str) -> Node:
+    """Re-root the neighbour-joining tree on the edge leading to the outgroup, and remove the
+    outgroup: the returned root is the closest common ancestor of the remaining leaves."""
+    adj: Dict[int, List[Node]] = {}
+    byid: Dict[int, Node] = {}
+    def link(u: Node, v: Node) -> None:
+        adj.setdefault(id(u), []).append(v); adj.setdefault(id(v), []).append(u)
+        byid[id(u)] = u; byid[id(v)] = v
+    def edges(n: Node, top: bool) -> None:
+        if top:                       # the last-edge root has degree two: suppress it
+            link(n.children[0], n.children[1])
+        else:
+            for c in n.children:
+                link(n, c)
+        for c in n.children:
+            edges(c, False)
+    edges(root, True)
+    out = next(n for n in byid.values() if n.name == outgroup)
+    start = adj[id(out)][0]
+    def build(n: Node, parent: Node) -> Node:
+        n.children = [build(c, n) for c in adj[id(n)] if c is not parent]
+        return n
+    return build(start, out)
+
+
+def _rename_internal(root: Node) -> None:
+    """Number the ancestors A1, A2, ... from the leaves upwards (post-order)."""
+    k = 0
+    def go(n: Node) -> None:
+        nonlocal k
+        for c in n.children:
+            go(c)
+        if not n.is_leaf:
+            k += 1
+            n.name = f"A{k}"
+    go(root)
+
+
+def neighbour_joining_tree(leaves: Dict[str, Sequence[str]], variants: Dict[str, str], distance=hamming,
+                           log: Optional[list] = None, outgroup: Optional[str] = None) -> Node:
+    """Rule 2: neighbour-joining topology from the leaf distances, then ancestors
+    reconstructed from the leaves upwards.
+
+    outgroup=None : the tree is rooted on the last edge joined (a convention).
+    outgroup=name : `leaves` includes a supplied outgroup sequence under that name. It takes
+                    part in the distances and in the joining, the tree is rooted on the edge
+                    leading to it, and it is then removed. It is used for rooting only: no
+                    ancestor is reconstructed from it.
+    """
+    nodes = [Node(n, list(s)) for n, s in leaves.items()]
+    joins = distance_matrix(nodes, variants, distance)
+    D: Dict[FrozenSet[int], float] = {frozenset(ij): v[1] + v[2] for ij, v in joins.items()}
+    if log is not None:
+        log.append({"names": [n.name for n in nodes],
+                    "dist": {(nodes[a].name, nodes[b].name): v[1] + v[2] for (a, b), v in joins.items()}})
+    root = _nj_join(nodes, D, log)
+    if outgroup is not None:
+        if outgroup not in leaves:
+            raise ValueError(f"outgroup {outgroup!r} is not among the sequences")
+        if len(leaves) < 3:
+            raise ValueError("need at least two sequences besides the outgroup")
+        root = _root_by_outgroup(root, outgroup)
+        _rename_internal(root)
     # ancestors from the leaves upwards
     def fill(node: Node) -> None:
         if node.is_leaf:

@@ -1,0 +1,171 @@
+========================================================================
+Neighbour joining, rooted by the outgroup
+========================================================================
+distances: {'D1,D2': 110.0, 'D1,D3': 80.0, 'D1,D4': 71.0, 'D1,OUT': 110.0, 'D2,D3': 70.0, 'D2,D4': 61.0, 'D2,OUT': 120.0, 'D3,D4': 20.0, 'D3,OUT': 90.0, 'D4,OUT': 90.0}
+Q: {'D1,D2': -402.0, 'D1,D3': -391.0, 'D1,D4': -400.0, 'D1,OUT': -451.0, 'D2,D3': -411.0, 'D2,D4': -420.0, 'D2,OUT': -411.0, 'D3,D4': -442.0, 'D3,OUT': -400.0, 'D4,OUT': -382.0}
+step 1: join ('D1', 'OUT')
+Q: {'D2,D3': -171.0, 'D2,D4': -175.5, 'D2,A1': -186.5, 'D3,D4': -186.5, 'D3,A1': -175.5, 'D4,A1': -171.0}
+step 2: join ('D2', 'A1')
+Q: {'D3,D4': -53.25, 'D3,A2': -53.25, 'D4,A2': -53.25}
+step 3: join ('D3', 'D4')
+
+A3 = d b b c
+├─ A2 = d b b c c    [R4; d_est = 10]
+│  ├─ A1 = a b b b c c    [S1 R2; d_est = 60]
+│  │  ├─ D3 = a b b b c c c    [R5; d_est = 10]
+│  │  └─ D4 = a b b b b c c    [R2; d_est = 10]
+│  └─ D2 = d b b c c    [no events; d_est = 0]
+└─ D1 = a b b f    [S1 S4; d_est = 100]
+
+Newick: (((D3:10,D4:10)A1:60,D2:0)A2:10,D1:100)A3;
+clades correct: True   root correct: False
+total weight of the tree: 190.0
+
+A3 -> A2: R4  (d_est = 10)
+d b b c c
+| | | | |
+d b b c c
+
+A2 -> A1: S1 R2  (d_est = 60)
+d b b b c c
+* | | | | |
+a b b b c c
+
+A1 -> D3: R5  (d_est = 10)
+a b b b c c c
+| | | | | | |
+a b b b c c c
+
+A1 -> D4: R2  (d_est = 10)
+a b b b b c c
+| | | | | | |
+a b b b b c c
+
+A2 -> D2: no events  (d_est = 0)
+d b b c c
+| | | | |
+d b b c c
+
+A3 -> D1: S1 S4  (d_est = 100)
+d b b c
+* | | *
+a b b f
+
+D3: copies a b b b c c c descend from root copies [1, 2, 2, 3, 4, 4, 4]
+D4: copies a b b b b c c descend from root copies [1, 2, 2, 2, 3, 4, 4]
+D2: copies d b b c c descend from root copies [1, 2, 3, 4, 4]
+D1: copies a b b f descend from root copies [1, 2, 3, 4]
+
+========================================================================
+Neighbour joining, rooted on the last edge joined (no outgroup)
+========================================================================
+distances: {'D1,D2': 110.0, 'D1,D3': 80.0, 'D1,D4': 71.0, 'D2,D3': 70.0, 'D2,D4': 61.0, 'D3,D4': 20.0}
+Q: {'D1,D2': -282.0, 'D1,D3': -271.0, 'D1,D4': -271.0, 'D2,D3': -271.0, 'D2,D4': -271.0, 'D3,D4': -282.0}
+step 1: join ('D1', 'D2')
+Q: {'D3,D4': -51.0, 'D3,A1': -51.0, 'D4,A1': -51.0}
+step 2: join ('D3', 'D4')
+
+A3 = d b b c
+├─ A1 = d b b c    [no events; d_est = 0]
+│  ├─ D1 = a b b f    [S1 S4; d_est = 100]
+│  └─ D2 = d b b c c    [R4; d_est = 10]
+└─ A2 = a b b b c c    [S1 R2 R4; d_est = 70]
+   ├─ D3 = a b b b c c c    [R5; d_est = 10]
+   └─ D4 = a b b b b c c    [R2; d_est = 10]
+
+Newick: ((D1:100,D2:10)A1:0,(D3:10,D4:10)A2:70)A3;
+clades correct: False   root correct: False
+total weight of the tree: 200.0
+
+A3 -> A1: no events  (d_est = 0)
+d b b c
+| | | |
+d b b c
+
+A1 -> D1: S1 S4  (d_est = 100)
+d b b c
+* | | *
+a b b f
+
+A1 -> D2: R4  (d_est = 10)
+d b b c c
+| | | | |
+d b b c c
+
+A3 -> A2: S1 R2 R4  (d_est = 70)
+d b b b c c
+* | | | | |
+a b b b c c
+
+A2 -> D3: R5  (d_est = 10)
+a b b b c c c
+| | | | | | |
+a b b b c c c
+
+A2 -> D4: R2  (d_est = 10)
+a b b b b c c
+| | | | | | |
+a b b b b c c
+
+D1: copies a b b f descend from root copies [1, 2, 3, 4]
+D2: copies d b b c c descend from root copies [1, 2, 3, 4, 4]
+D3: copies a b b b c c c descend from root copies [1, 2, 2, 3, 4, 4, 4]
+D4: copies a b b b b c c descend from root copies [1, 2, 2, 2, 3, 4, 4]
+
+========================================================================
+Closest pair (no outgroup)
+========================================================================
+distances: {'D1,D2': 110.0, 'D1,D3': 80.0, 'D1,D4': 71.0, 'D2,D3': 70.0, 'D2,D4': 61.0, 'D3,D4': 20.0}
+step 1: join ('D3', 'D4') -> A1 = a b b b c c (ties: 1)
+distances: {'D1,D2': 110.0, 'D1,A1': 70.0, 'D2,A1': 60.0}
+step 2: join ('D2', 'A1') -> A2 = d b b c c (ties: 1)
+distances: {'D1,A2': 110.0}
+step 3: join ('D1', 'A2') -> A3 = d b b c (ties: 1)
+
+A3 = d b b c
+├─ D1 = a b b f    [S1 S4; d_est = 100]
+└─ A2 = d b b c c    [R4; d_est = 10]
+   ├─ D2 = d b b c c    [no events; d_est = 0]
+   └─ A1 = a b b b c c    [S1 R2; d_est = 60]
+      ├─ D3 = a b b b c c c    [R5; d_est = 10]
+      └─ D4 = a b b b b c c    [R2; d_est = 10]
+
+Newick: (D1:100,(D2:0,(D3:10,D4:10)A1:60)A2:10)A3;
+clades correct: True   root correct: False
+total weight of the tree: 190.0
+
+A3 -> D1: S1 S4  (d_est = 100)
+d b b c
+* | | *
+a b b f
+
+A3 -> A2: R4  (d_est = 10)
+d b b c c
+| | | | |
+d b b c c
+
+A2 -> D2: no events  (d_est = 0)
+d b b c c
+| | | | |
+d b b c c
+
+A2 -> A1: S1 R2  (d_est = 60)
+d b b b c c
+* | | | | |
+a b b b c c
+
+A1 -> D3: R5  (d_est = 10)
+a b b b c c c
+| | | | | | |
+a b b b c c c
+
+A1 -> D4: R2  (d_est = 10)
+a b b b b c c
+| | | | | | |
+a b b b b c c
+
+D1: copies a b b f descend from root copies [1, 2, 3, 4]
+D2: copies d b b c c descend from root copies [1, 2, 3, 4, 4]
+D3: copies a b b b c c c descend from root copies [1, 2, 2, 3, 4, 4, 4]
+D4: copies a b b b b c c descend from root copies [1, 2, 2, 2, 3, 4, 4]
+
