@@ -1,0 +1,127 @@
+========================================================================
+Rule 1: closest pair
+========================================================================
+distances: {'D1,D2': 60.0, 'D1,D3': 40.0, 'D1,D4': 80.0, 'D2,D3': 80.0, 'D2,D4': 120.0, 'D3,D4': 60.0}
+pair ancestors: {'D1,D2': 'a b b f', 'D1,D3': 'a b c', 'D1,D4': 'd b c', 'D2,D3': 'a b c', 'D2,D4': 'd b c', 'D3,D4': 'a b c c'}
+step 1: join ('D1', 'D3') -> A1 = a b c (ties: 1)
+distances: {'D2,D4': 120.0, 'D2,A1': 60.0, 'D4,A1': 60.0}
+pair ancestors: {'D2,D4': 'd b c', 'D2,A1': 'a b f', 'D4,A1': 'a b c'}
+step 2: join ('D2', 'A1') -> A2 = a b f (ties: 2)
+distances: {'D4,A2': 110.0}
+pair ancestors: {'D4,A2': 'd b c'}
+step 3: join ('D4', 'A2') -> A3 = d b c (ties: 1)
+
+A3 = d b c
+├─ D4 = d b c c    [R3; d_est = 10]
+└─ A2 = a b f    [S1 S3; d_est = 100]
+   ├─ D2 = a b b f    [R2; d_est = 10]
+   └─ A1 = a b c    [S3; d_est = 50]
+      ├─ D1 = a b b b c    [R2 R2; d_est = 20]
+      └─ D3 = a b c c c    [R3 R3; d_est = 20]
+
+Newick: (D4:10,(D2:10,(D1:20,D3:20)A1:50)A2:100)A3;
+clades correct: False
+
+A3 -> D4: R3  (d_est = 10)
+d b c c
+| | | |
+d b c c
+origin of each copy in A3 : [1, 2, 3, 3]
+
+A3 -> A2: S1 S3  (d_est = 100)
+d b c
+* | *
+a b f
+origin of each copy in A3 : [1, 2, 3]
+
+A2 -> D2: R2  (d_est = 10)
+a b b f
+| | | |
+a b b f
+origin of each copy in A2 : [1, 2, 2, 3]
+
+A2 -> A1: S3  (d_est = 50)
+a b f
+| | *
+a b c
+origin of each copy in A2 : [1, 2, 3]
+
+A1 -> D1: R2 R2  (d_est = 20)
+a b b b c
+| | | | |
+a b b b c
+origin of each copy in A1 : [1, 2, 2, 2, 3]
+
+A1 -> D3: R3 R3  (d_est = 20)
+a b c c c
+| | | | |
+a b c c c
+origin of each copy in A1 : [1, 2, 3, 3, 3]
+
+D4: copies d b c c descend from root copies [1, 2, 3, 3]
+D2: copies a b b f descend from root copies [1, 2, 2, 3]
+D1: copies a b b b c descend from root copies [1, 2, 2, 2, 3]
+D3: copies a b c c c descend from root copies [1, 2, 3, 3, 3]
+
+========================================================================
+Rule 2: neighbour joining
+========================================================================
+distances: {'D1,D2': 60.0, 'D1,D3': 40.0, 'D1,D4': 80.0, 'D2,D3': 80.0, 'D2,D4': 120.0, 'D3,D4': 60.0}
+Q: {'D1,D2': -320.0, 'D1,D3': -280.0, 'D1,D4': -280.0, 'D2,D3': -280.0, 'D2,D4': -280.0, 'D3,D4': -320.0}
+step 1: join ('D1', 'D2')
+Q: {'D3,D4': -160.0, 'D3,A1': -160.0, 'D4,A1': -160.0}
+step 2: join ('D3', 'D4')
+
+A3 = a b c
+├─ A1 = a b b f    [R2 S3; d_est = 60]
+│  ├─ D1 = a b b b c    [R2 S4; d_est = 60]
+│  └─ D2 = a b b f    [no events; d_est = 0]
+└─ A2 = a b c c    [R3; d_est = 10]
+   ├─ D3 = a b c c c    [R3; d_est = 10]
+   └─ D4 = d b c c    [S1; d_est = 50]
+
+Newick: ((D1:60,D2:0)A1:60,(D3:10,D4:50)A2:10)A3;
+clades correct: True
+
+A3 -> A1: R2 S3  (d_est = 60)
+a b b c
+| | | *
+a b b f
+origin of each copy in A3 : [1, 2, 2, 3]
+
+A1 -> D1: R2 S4  (d_est = 60)
+a b b b f
+| | | | *
+a b b b c
+origin of each copy in A1 : [1, 2, 2, 3, 4]
+
+A1 -> D2: no events  (d_est = 0)
+a b b f
+| | | |
+a b b f
+origin of each copy in A1 : [1, 2, 3, 4]
+
+A3 -> A2: R3  (d_est = 10)
+a b c c
+| | | |
+a b c c
+origin of each copy in A3 : [1, 2, 3, 3]
+
+A2 -> D3: R3  (d_est = 10)
+a b c c c
+| | | | |
+a b c c c
+origin of each copy in A2 : [1, 2, 3, 3, 4]
+
+A2 -> D4: S1  (d_est = 50)
+a b c c
+* | | |
+d b c c
+origin of each copy in A2 : [1, 2, 3, 4]
+
+D1: copies a b b b c descend from root copies [1, 2, 2, 2, 3]
+D2: copies a b b f descend from root copies [1, 2, 2, 3]
+D3: copies a b c c c descend from root copies [1, 2, 3, 3, 3]
+D4: copies d b c c descend from root copies [1, 2, 3, 3]
+
+same clades under both rules: False
