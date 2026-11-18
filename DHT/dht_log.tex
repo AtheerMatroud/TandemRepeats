@@ -1,0 +1,189 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,backgroundcolor=\color{gray!8},
+  literate={├}{{\texttt{|}}}1 {└}{{\texttt{`}}}1 {─}{{\texttt{-}}}1 {│}{{\texttt{|}}}1}
+\newcommand{\Ahat}{\widehat{A}}
+\newcommand{\dest}[2]{d_{\mathrm{est}}(#1,#2)}
+
+\title{Reconstruction of the duplication history tree: work log}
+\author{Atheer A. Matroud\\ \small (documented with Claude)}
+\date{18 November 2026}
+
+\begin{document}
+\maketitle
+
+\section{Session 1: small example (18 November 2026)}
+
+\subsection{Objective}
+Given $k$ homologous tandem repeat sequences, written as TR maps $D_1,\ldots,D_k$, the aim is to
+reconstruct their duplication history tree: the tree whose leaves are the $D_i$, whose internal
+nodes are reconstructed ancestors, and whose edges carry the duplications, deletions and
+substitutions that turn each ancestor into its child, so that every motif copy of every
+descendant can be followed back to a motif copy of the root.
+
+\subsection{Decisions taken in this session}
+\begin{enumerate}
+\item The tree across the homologous sequences and the history of the motif copies inside each
+  sequence are reconstructed together, as one object called the duplication history tree.
+\item The method extends the \texttt{tr\_aligner} package (asymmetric alignment of Matroud,
+  Tuffley and Hendy 2021, and the ancestor reconstruction of the MPE manuscript).
+\item The work starts with a small example that can be traced by hand. Once it is validated, a
+  simulation follows in which homologous sequences are derived from a five level tree, each
+  ancestor being an internal node, with several tree shapes.
+\item The small example is a balanced tree with four descendants.
+\item Two rules for building the tree are compared: joining the closest pair, and neighbour
+  joining.
+\item The reconstruction stops at the closest common ancestor of all the sequences. The root is
+  not reduced to a single motif copy.
+\item Real data, after the simulations: the taro NTR and MSY1 from the Hallast assemblies.
+\end{enumerate}
+
+\subsection{The example}
+Six variants of length 6 are used (those of the thesis, Chapter~1.3):
+\[
+a=\texttt{CATGGT},\; b=\texttt{TATGGA},\; c=\texttt{CACGCT},\; d=\texttt{TATGGT},\;
+e=\texttt{CAAGGT},\; f=\texttt{CACGGT},
+\]
+with $H(a,d)=1$ and $H(c,f)=1$. The true history has one event on each edge:
+\begin{lstlisting}
+R = a b c
+  X = a b b c          R2   duplication of b
+    D1 = a b b b c     R2   duplication of b
+    D2 = a b b f       S4   c -> f
+  Y = a b c c          R3   duplication of c
+    D3 = a b c c c     R3   duplication of c
+    D4 = d b c c       S1   a -> d
+\end{lstlisting}
+Only $D_1,\ldots,D_4$ are given to the method. Under the edit-weight scoring $\sigma_w$ a
+$1$--duplication costs $10$ and a substitution between variants at Hamming distance 1 costs $50$.
+
+\subsection{Method}
+\begin{description}
+\item[Step 1, distances.] For two TR maps $X$ and $Y$ the ancestor $\Ahat=\Ahat(X,Y)$ is
+  reconstructed by the procedure of the MPE manuscript, and
+  $d(X,Y)=\dest{\Ahat}{X}+\dest{\Ahat}{Y}$ under the anchored edit-weight scoring.
+\item[Step 2, tree.] \emph{Closest pair}: the pair with the smallest $d$ is joined and replaced
+  by its reconstructed ancestor, the distances from that ancestor are recalculated, and the step
+  is repeated until one sequence remains. \emph{Neighbour joining}: the topology is built once
+  from the distances between the descendants, the tree is rooted on the last edge joined, and
+  the ancestors are then reconstructed from the leaves upwards.
+\item[Step 3, events.] Each ancestor is aligned against each of its children with the anchored
+  asymmetric alignment under $\sigma_w$, and the events on the edge are read from the alignment.
+\item[Step 4, motif copies.] Each motif copy of a child is assigned the copy of its parent
+  against which it was aligned. Composing the edges gives, for every copy of every descendant,
+  the copy of the root from which it descends.
+\end{description}
+
+\subsection{Results}
+\paragraph{Distances.} Table~\ref{tab:dist} gives the six distances and the pair ancestors. Each
+distance was checked by hand, and each equals the weight of the true path between the two
+descendants in the true tree (for example $D_1$ to $D_3$ is four $1$--duplications, $40$;
+$D_1$ to $D_2$ is one duplication and one substitution, $60$).
+
+\begin{table}[h]
+\centering
+\caption{Pairwise distances through the reconstructed ancestor, anchored edit-weight scoring.}
+\label{tab:dist}
+\begin{tabular}{llrrr}
+\hline\hline
+Pair & $\Ahat$ & $\dest{\Ahat}{X}$ & $\dest{\Ahat}{Y}$ & $d(X,Y)$ \\ \hline
+$D_1,D_2$ & $a\,b\,b\,f$ & 60 & 0 & 60 \\
+$D_1,D_3$ & $a\,b\,c$ & 20 & 20 & 40 \\
+$D_1,D_4$ & $d\,b\,c$ & 70 & 10 & 80 \\
+$D_2,D_3$ & $a\,b\,c$ & 60 & 20 & 80 \\
+$D_2,D_4$ & $d\,b\,c$ & 110 & 10 & 120 \\
+$D_3,D_4$ & $a\,b\,c\,c$ & 10 & 50 & 60 \\ \hline\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Closest pair.} The first join is $(D_1,D_3)$ at distance $40$, which is not a pair of
+siblings. The resulting tree is $(D_4,(D_2,(D_1,D_3)))$ with root $d\,b\,c$: wrong topology and
+wrong root.
+\begin{lstlisting}
+A3 = d b c
+|- D4 = d b c c            [R3; d_est = 10]
+`- A2 = a b f              [S1 S3; d_est = 100]
+   |- D2 = a b b f         [R2; d_est = 10]
+   `- A1 = a b c           [S3; d_est = 50]
+      |- D1 = a b b b c    [R2 R2; d_est = 20]
+      `- D3 = a b c c c    [R3 R3; d_est = 20]
+\end{lstlisting}
+
+\paragraph{Neighbour joining.} The first join is $(D_1,D_2)$ (the criterion $Q$ is $-320$ for
+$(D_1,D_2)$ and $(D_3,D_4)$ and $-280$ for the other four pairs). The tree is
+$((D_1,D_2),(D_3,D_4))$, the true topology, and the root is $a\,b\,c$, the true root.
+\begin{lstlisting}
+A3 = a b c
+|- A1 = a b b f            [R2 S3; d_est = 60]
+|  |- D1 = a b b b c       [R2 S4; d_est = 60]
+|  `- D2 = a b b f         [no events; d_est = 0]
+`- A2 = a b c c            [R3; d_est = 10]
+   |- D3 = a b c c c       [R3; d_est = 10]
+   `- D4 = d b c c         [S1; d_est = 50]
+\end{lstlisting}
+Motif copies traced to the root $a\,b\,c$ (positions 1, 2, 3):
+\begin{center}
+\begin{tabular}{lll}
+\hline\hline
+Descendant & TR map & Root copy of each motif copy \\ \hline
+$D_1$ & $a\,b\,b\,b\,c$ & 1, 2, 2, 2, 3 \\
+$D_2$ & $a\,b\,b\,f$ & 1, 2, 2, 3 \\
+$D_3$ & $a\,b\,c\,c\,c$ & 1, 2, 3, 3, 3 \\
+$D_4$ & $d\,b\,c\,c$ & 1, 2, 3, 3 \\ \hline\hline
+\end{tabular}
+\end{center}
+All four agree with the true history.
+
+\subsection{Findings}
+\begin{enumerate}
+\item \textbf{The closest pair rule fails on this example, and the reason is not the distance.}
+  The distances are exact. The true tree is not clock-like: an edge carrying a substitution
+  weighs $50$ and an edge carrying a duplication weighs $10$, so two descendants in different
+  halves of the tree, separated by four duplications ($40$), are closer than two siblings
+  separated by a duplication and a substitution ($60$). Joining the closest pair assumes that
+  siblings are the closest pair, which does not hold here. Neighbour joining needs only that the
+  distances add along the tree, which they do.
+\item \textbf{An internal ancestor with two children cannot decide a substitution.} The true
+  $X$ is $a\,b\,b\,c$; the reconstructed $A_1$ is $a\,b\,b\,f$. With $D_1$ ending in $c$ and
+  $D_2$ in $f$, the two children alone give no reason to prefer one. As a result the
+  substitution $c\to f$ is placed on the wrong edges ($A_3\to A_1$ and back again on
+  $A_1\to D_1$), and the total weight of the tree is $190$ instead of the true $140$. The other
+  half of the tree ($A_2 = a\,b\,c\,c$) and the root are exact. The parent of $A_1$ holds the
+  missing information: a vote at $A_1$ among its two children and its parent would return $c$.
+\item \textbf{The position of the root under neighbour joining is a convention.} Neighbour
+  joining gives an unrooted tree. Rooting on the last edge joined is correct for the balanced
+  example, but with three nodes left the criterion $Q$ is tied ($-160$ for all three pairs), and
+  for other tree shapes this convention will not, in general, find the root.
+\item The tracing of motif copies to the root was correct for all four descendants, even with
+  the wrong variant in $A_1$.
+\end{enumerate}
+
+\subsection{Open points for the next session}
+\begin{enumerate}
+\item Whether to add a correction pass in which each internal ancestor is revised by a vote among
+  its two children and its parent (Finding 2).
+\item How the root is to be placed on the neighbour-joining tree (Finding 3).
+\item Whether the closest pair rule is dropped, or kept for comparison in the simulations.
+\item The design of the five level simulation: tree shapes, events per edge, ancestor length.
+\end{enumerate}
+
+\subsection{Files}
+All in the folder \texttt{Tandem Repeats/DHT}:
+\begin{itemize}
+\item \texttt{dht/tree.py}: distances, the two tree rules, edge events, tracing of motif copies,
+  Newick output.
+\item \texttt{examples/small\_example.py} and \texttt{examples/small\_example\_output.txt}: the
+  example of this session and its full output, including every alignment.
+\item \texttt{tests/test\_small\_example.py}: checks of the results above.
+\item \texttt{tr\_aligner/}: unchanged copy of the alignment and ancestor reconstruction package.
+\end{itemize}
+To reproduce: \texttt{python examples/small\_example.py}.
+
+\end{document}
