@@ -14,7 +14,7 @@
 
 \title{Reconstruction of the duplication history tree: work log}
 \author{Atheer A. Matroud\\ \small (documented with Claude)}
-\date{18 November 2026}
+\date{Sessions of 18 November 2026}
 
 \begin{document}
 \maketitle
@@ -185,5 +185,135 @@ All in the folder \texttt{Tandem Repeats/DHT}:
 \item \texttt{tr\_aligner/}: unchanged copy of the alignment and ancestor reconstruction package.
 \end{itemize}
 To reproduce: \texttt{python examples/small\_example.py}.
+
+\section{Session 2: rulings, outgroup rooting and an unbalanced example (18 November 2026)}
+
+\subsection{Rulings}
+\begin{enumerate}
+\item No correction pass is added: an internal ancestor is not revised by a vote among its
+  children and its parent.
+\item The neighbour-joining tree is rooted by an outgroup sequence supplied by the user.
+\item A second hand example, with an unbalanced tree, is traced before the five level
+  simulation.
+\item Whether the closest pair rule is kept is still open; an explanation was requested and is
+  given in Section~\ref{sec:cp}.
+\end{enumerate}
+
+\subsection{Rooting by an outgroup}
+The outgroup is given together with the homologous sequences. It takes part in the distances of
+Step~1 and in the joining of Step~2 as any other sequence. The resulting tree is then rooted on
+the edge leading to the outgroup, and the outgroup is removed, so that the root is the closest
+common ancestor of the homologous sequences. The outgroup is used for the rooting only: no
+ancestor is reconstructed from it. Code: \texttt{neighbour\_joining\_tree(..., outgroup=name)}
+in \texttt{dht/tree.py}.
+
+\subsection{The example}
+The variants are those of Session~1, with $H(a,e)=1$. The true history has one event on each
+edge:
+\begin{lstlisting}
+O = a b c
+  OUT = e b c                  S1   a -> e   (the outgroup)
+  R = a b b c                  R2   duplication of b
+    D1 = a b b f               S4   c -> f
+    X = a b b c c              R4   duplication of c
+      D2 = d b b c c           S1   a -> d
+      Y = a b b b c c          R2   duplication of b
+        D3 = a b b b c c c     R5   duplication of c
+        D4 = a b b b b c c     R2   duplication of b
+\end{lstlisting}
+The input is $D_1,\ldots,D_4$ and the outgroup. The expected tree is $(D_1,(D_2,(D_3,D_4)))$
+with root $R=a\,b\,b\,c$.
+
+\subsection{Results}
+\paragraph{Distances.} Table~\ref{tab:dist2} compares each distance with the weight of the true
+path. Eight of the ten are exact. The two that involve $D_4$ together with a substitution are
+lower by $9$: the two additional copies of $b$ in $D_4$, which arose in two $1$--duplications
+(weight $20$), are explained by the alignment as one $2$--duplication (weight $11$).
+
+\begin{table}[h]
+\centering
+\caption{Distances through the reconstructed ancestor and weights of the true paths, second
+example.}
+\label{tab:dist2}
+\begin{tabular}{lrr@{\qquad}lrr}
+\hline\hline
+Pair & $d$ & True & Pair & $d$ & True \\ \hline
+$D_1,D_2$ & 110 & 110 & $D_3,D_4$ & 20 & 20 \\
+$D_1,D_3$ & 80 & 80 & $D_1,\mathrm{OUT}$ & 110 & 110 \\
+$D_1,D_4$ & 71 & 80 & $D_2,\mathrm{OUT}$ & 120 & 120 \\
+$D_2,D_3$ & 70 & 70 & $D_3,\mathrm{OUT}$ & 90 & 90 \\
+$D_2,D_4$ & 61 & 70 & $D_4,\mathrm{OUT}$ & 90 & 90 \\ \hline\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Neighbour joining rooted by the outgroup.} The joins are $(D_1,\mathrm{OUT})$, then
+$D_2$, then $(D_3,D_4)$. Rooted on the edge to the outgroup, the tree is
+$(D_1,(D_2,(D_3,D_4)))$, the true topology.
+\begin{lstlisting}
+A3 = d b b c
+|- A2 = d b b c c                 [R4; d_est = 10]
+|  |- A1 = a b b b c c            [S1 R2; d_est = 60]
+|  |  |- D3 = a b b b c c c       [R5; d_est = 10]
+|  |  `- D4 = a b b b b c c       [R2; d_est = 10]
+|  `- D2 = d b b c c              [no events; d_est = 0]
+`- D1 = a b b f                   [S1 S4; d_est = 100]
+\end{lstlisting}
+The motif copies traced to the four copies of the root are
+$D_1$: 1, 2, 3, 4; $D_2$: 1, 2, 3, 4, 4; $D_3$: 1, 2, 2, 3, 4, 4, 4; $D_4$: 1, 2, 2, 2, 3, 4, 4,
+in agreement with the true history.
+
+\paragraph{Neighbour joining without the outgroup.} Rooted on the last edge joined, the tree is
+$((D_1,D_2),(D_3,D_4))$, which is wrong. This confirms Finding~3 of Session~1.
+
+\paragraph{Closest pair.} The tree is $(D_1,(D_2,(D_3,D_4)))$, the true topology, with the same
+ancestors as above. No outgroup is needed.
+
+\subsection{Findings}
+\begin{enumerate}
+\item \textbf{The outgroup places the root correctly.} The topology, the number of motif copies
+  of every ancestor and the tracing of the motif copies are all correct.
+\item \textbf{The variant in the first position of the root is wrong.} $A_1=a\,b\,b\,b\,c\,c$ is
+  exact (the true $Y$). The true $X$ is $a\,b\,b\,c\,c$ and the true $R$ is $a\,b\,b\,c$; the
+  reconstruction gives $d\,b\,b\,c\,c$ and $d\,b\,b\,c$. The variant $d$ occurs only in $D_2$.
+  With two children showing $a$ and $d$ the ancestor takes $d$, and $d$ is then carried to the
+  root, where the choice between $a$ (from $D_1$) and $d$ again falls on $d$. The substitution
+  $a\to d$, which happened once on the edge to $D_2$, is charged twice (on the edges to $A_1$
+  and to $D_1$), and the tree weighs $190$ instead of the true $140$. This is the consequence
+  of Ruling~1 on this example, and the same effect as Finding~2 of Session~1. The outgroup
+  $e\,b\,c$ carries $e$ at that position and would not settle the choice by itself.
+\item \textbf{The distances are no longer exact when duplications are adjacent.} Two
+  $1$--duplications of the same variant are read as one $2$--duplication. The topology was not
+  affected here.
+\item \textbf{The two examples together separate the two rules.} Closest pair found the
+  unbalanced tree and failed on the balanced one; neighbour joining found both topologies, and
+  needs the outgroup for the root.
+\end{enumerate}
+
+\subsection{The closest pair rule}\label{sec:cp}
+The closest pair rule builds the tree and the ancestors at the same time: after each join the
+pair is replaced by its reconstructed ancestor and the distances are recalculated from that
+ancestor. It gives a rooted tree without an outgroup. It is correct when the two closest
+sequences are always siblings, which holds when every descendant is at about the same distance
+from the root. Session~1 showed that this fails when the edges differ in weight, because a
+substitution weighs five times a $1$--duplication. Neighbour joining does not need that
+assumption, but it uses only the distances between the descendants, gives an unrooted tree, and
+needs the outgroup.
+
+Keeping the rule in the simulations costs little, since it uses the same pairwise
+reconstructions, and it would show on which tree shapes and event densities each rule is
+reliable. Dropping it gives a single method to describe.
+
+\subsection{Open points}
+\begin{enumerate}
+\item Whether the closest pair rule is kept as a comparison in the simulations.
+\item Whether the choice of variant at an internal ancestor is to be left as it is, given
+  Finding~2.
+\item The design of the five level simulation: tree shapes, events per edge, length of the root,
+  and how the outgroup is generated.
+\end{enumerate}
+
+\subsection{Files added}
+\texttt{examples/unbalanced\_example.py}, \texttt{examples/unbalanced\_example\_output.txt},
+\texttt{tests/test\_unbalanced\_example.py}; \texttt{dht/tree.py} gained the outgroup rooting.
 
 \end{document}
